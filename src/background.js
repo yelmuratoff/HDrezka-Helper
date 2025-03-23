@@ -745,6 +745,9 @@ function MainScript(chrome_i18n) {
     const playerElement = document.getElementById("oframecdnplayer");
     if (!playerElement) return;
 
+    // Track whether context menu has been enabled
+    let contextMenuEnabled = false;
+
     // Function to create subtitle container
     function createSubtitlesContainer(parent, className) {
       let container = document.createElement("pjsdiv");
@@ -761,6 +764,12 @@ function MainScript(chrome_i18n) {
       container.style.flexDirection = "column";
       container.style.alignItems = "center";
       container.style.justifyContent = "center";
+      
+      // Add right-click handler directly to container
+      container.addEventListener('contextmenu', function(e) {
+        e.stopPropagation();
+      }, true);
+      
       parent.appendChild(container);
       return container;
     }
@@ -771,9 +780,11 @@ function MainScript(chrome_i18n) {
       "multi-subtitle-display"
     );
 
-    // Enable context menu on subtitles
+    // Enable context menu on subtitles - only setup once
     function enableContextMenu() {
-      // Prevent blocking of context menu on the player
+      if (contextMenuEnabled) return;
+      
+      // Main player right-click handler
       playerElement.addEventListener('contextmenu', function(e) {
         // Check if right-click was on a subtitle element
         let path = e.composedPath();
@@ -781,34 +792,36 @@ function MainScript(chrome_i18n) {
           if (element.classList && 
              (element.classList.contains('multi-subtitle-display') || 
               element.classList.contains('multi-subtitle-display-fullscreen') ||
-              element.classList.contains('subtitle-text'))) {
-            // Allow default browser context menu for subtitle elements
+              element.classList.contains('subtitle-text') ||
+              element.classList.contains('subtitle-span'))) {
+            // Allow default browser context menu
             e.stopPropagation();
             return true;
           }
         }
       }, true);
       
-      // Apply to both subtitle containers
-      document.querySelectorAll('.multi-subtitle-display, .multi-subtitle-display-fullscreen').forEach(container => {
-        container.addEventListener('contextmenu', function(e) {
-          e.stopPropagation();
-          return true;
-        }, true);
-      });
+      contextMenuEnabled = true;
     }
     
     // Call the function immediately
     enableContextMenu();
     
-    // Watch for DOM changes to reapply if needed
-    const subtitleObserver = new MutationObserver(function() {
-      enableContextMenu();
+    // Single unified observer for player changes
+    const playerObserver = new MutationObserver(function(mutations) {
+      // Handle subtitle display hiding
+      const playerSubtitles = document.querySelector(
+        '#oframecdnplayer > pjsdiv[style*="bottom: 50px"]:not(.multi-subtitle-display):not(.multi-subtitle-display-fullscreen)'
+      );
+      if (playerSubtitles) {
+        playerSubtitles.style.display = "none";
+      }
     });
     
-    subtitleObserver.observe(playerElement, {
+    playerObserver.observe(playerElement, {
       childList: true,
-      subtree: true
+      subtree: true,
+      attributes: true,
     });
 
     // Process all selected subtitles
@@ -831,11 +844,34 @@ function MainScript(chrome_i18n) {
       let subDisplay = document.createElement("pjsdiv");
       subDisplay.dataset.lang = lang;
       subDisplay.className = "subtitle-text";
+      
+      // Add right-click handler directly
+      subDisplay.addEventListener('contextmenu', function(e) {
+        e.stopPropagation();
+      }, true);
+      
       subsContainer.appendChild(subDisplay);
 
       // Enable track and set up event listeners
       const trackObj = video.textTracks[video.textTracks.length - 1];
       trackObj.mode = "hidden";
+
+      // Monitor cue changes - create a reusable style string
+      const baseStyle = "background-color:rgba(0,0,0,0.7);" +
+                        "padding:3px 6px;" +
+                        "border-radius:3px;" +
+                        "line-height:1.4;" +
+                        "color:white;" +
+                        "display:inline-block;" +
+                        "margin-bottom:2px;" +
+                        "max-width:100%;" +
+                        "white-space:normal;" +
+                        "word-break:break-word;" +
+                        "user-select:text;" +
+                        "pointer-events:auto;" +
+                        "-webkit-user-select:text;" +
+                        "-moz-user-select:text;" +
+                        "-ms-user-select:text;";
 
       // Monitor cue changes
       trackObj.oncuechange = function () {
@@ -865,38 +901,13 @@ function MainScript(chrome_i18n) {
             // Set font size based on language position (first is larger and bold, second is smaller)
             const fontSize = i === 0 ? "18px" : "14px";
             const fontWeight = i === 0 ? "700" : "400";
-            // Create a span element for subtitle text with enhanced right-click support
+            
+            // Use the precomputed style string and just append variable parts
             const spanHTML = `<span 
-              style="background-color:rgba(0,0,0,0.7);
-                    padding:3px 6px;
-                    border-radius:3px;
-                    line-height:1.4;
-                    font-weight:${fontWeight};
-                    color:white;
-                    display:inline-block;
-                    margin-bottom:2px;
-                    max-width:100%;
-                    white-space:normal;
-                    word-break:break-word;
-                    font-size:${fontSize};
-                    user-select:text;
-                    pointer-events:auto;
-                    -webkit-user-select:text;
-                    -moz-user-select:text;
-                    -ms-user-select:text;"
+              style="${baseStyle}font-weight:${fontWeight};font-size:${fontSize};"
               class="subtitle-span">${cueText}</span>`;
             
             subElement.innerHTML = spanHTML;
-            
-            // Add event listener after rendering
-            setTimeout(() => {
-              const span = subElement.querySelector('.subtitle-span');
-              if (span) {
-                span.addEventListener('contextmenu', function(e) {
-                  e.stopPropagation();
-                }, true);
-              }
-            }, 0);
           } else {
             subElement.innerHTML = "";
           }
@@ -939,6 +950,12 @@ function MainScript(chrome_i18n) {
           let subDisplay = document.createElement("pjsdiv");
           subDisplay.dataset.lang = lang;
           subDisplay.className = "subtitle-text";
+          
+          // Add right-click handler directly
+          subDisplay.addEventListener('contextmenu', function(e) {
+            e.stopPropagation();
+          }, true);
+          
           fullscreenContainer.appendChild(subDisplay);
 
           // Copy current content if available
@@ -949,9 +966,6 @@ function MainScript(chrome_i18n) {
             subDisplay.innerHTML = origSubElement.innerHTML;
           }
         }
-        
-        // Re-enable context menu for fullscreen subtitles
-        setTimeout(enableContextMenu, 100);
       }
     }
 
@@ -972,36 +986,18 @@ function MainScript(chrome_i18n) {
       });
     }
 
-    // Hide player subtitles
-    const subtitlesObserver = new MutationObserver(function () {
-      const playerSubtitles = document.querySelector(
-        '#oframecdnplayer > pjsdiv[style*="bottom: 50px"]:not(.multi-subtitle-display):not(.multi-subtitle-display-fullscreen)'
-      );
-      if (playerSubtitles) {
-        playerSubtitles.style.display = "none";
-      }
-    });
-
-    subtitlesObserver.observe(playerElement, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-    });
-
-    // Check fullscreen state during playback
+    // Check fullscreen state during playback - but throttle the checks
+    let lastCheckTime = 0;
     video.addEventListener("timeupdate", function () {
-      // Hide player subtitles
-      const playerSubtitles = document.querySelector(
-        '#oframecdnplayer > pjsdiv[style*="bottom: 50px"]:not(.multi-subtitle-display):not(.multi-subtitle-display-fullscreen)'
-      );
-      if (playerSubtitles) {
-        playerSubtitles.style.display = "none";
-      }
-
-      // Check if we need to recreate fullscreen subtitles
+      const now = Date.now();
+      // Only check every 1000ms to reduce performance impact
+      if (now - lastCheckTime < 1000) return;
+      lastCheckTime = now;
+      
       const isFullscreen = !!(
         document.fullscreenElement || document.webkitFullscreenElement
       );
+      
       if (
         isFullscreen &&
         !document.querySelector(".multi-subtitle-display-fullscreen")
