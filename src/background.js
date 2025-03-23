@@ -73,6 +73,7 @@ function executeScript(tabId) {
         subtitles: browser.i18n.getMessage("subtitles"),
         dualSubtitles: browser.i18n.getMessage("dualSubtitles"),
         applySubtitles: browser.i18n.getMessage("applySubtitles"),
+        disableSubtitles: browser.i18n.getMessage("disableSubtitles"),
         cancelDownload: browser.i18n.getMessage("cancelDownload"),
         donateTitle: browser.i18n.getMessage("donateTitle"),
         donateButton: browser.i18n.getMessage("donateButton"),
@@ -206,12 +207,61 @@ function MainScript(chrome_i18n) {
     let arr = clearTrash(CDNPlayerInfo.streams).split(",");
     createButton();
     createDownloadMenu(arr);
+    
+    // Automatically apply EN and RU subtitles without opening menu
+    if (args.subtitles) {
+      autoApplySubtitles();
+    }
   }
 
   function hideVK() {
     let el_ = document.getElementById("vk_groups");
     if (el_) {
       el_.style.display = "none";
+    }
+  }
+
+  // Automatically apply EN and RU subtitles without user interaction
+  function autoApplySubtitles() {
+    if (!CDNPlayerInfo.subtitle || !document.getElementById("oframecdnplayer")) return;
+    
+    const playerElement = document.getElementById("oframecdnplayer");
+    const activeSubtitles = {};
+    let engKey, ruKey;
+    
+    // Parse subtitles and auto-enable EN and RU
+    CDNPlayerInfo.subtitle.split(",").forEach(function(e) {
+      try {
+        const [lang, link] = e.split("[")[1].split("]");
+        
+        // Direct check for English or Russian subtitles
+        if (lang.toLowerCase() === "english" || lang.toLowerCase() === "en") {
+          engKey = lang;
+          activeSubtitles[lang] = link;
+        } else if (lang.toLowerCase() === "russian" || lang.toLowerCase() === "ru" || 
+                  lang.toLowerCase() === "русский") {
+          ruKey = lang;
+          activeSubtitles[lang] = link;
+        }
+      } catch (error) {
+        console.error("Error parsing subtitle:", e);
+      }
+    });
+    
+    // If both EN and RU found, reorder them (EN first) and apply
+    if (Object.keys(activeSubtitles).length > 0) {
+      // Create ordered object with English first if both are present
+      if (engKey && ruKey) {
+        const orderedSubtitles = {};
+        orderedSubtitles[engKey] = activeSubtitles[engKey];
+        orderedSubtitles[ruKey] = activeSubtitles[ruKey];
+        
+        // Apply the ordered subtitles
+        updateSubtitlesDisplay(orderedSubtitles);
+      } else {
+        // Apply whatever subtitles we found
+        updateSubtitlesDisplay(activeSubtitles);
+      }
     }
   }
 
@@ -568,70 +618,112 @@ function MainScript(chrome_i18n) {
 
   function addSubtitles() {
     const Subtitles = CDNPlayerInfo.subtitle;
-    if (Subtitles) {
-      let div_ = document.getElementById("downloadMenu");
-      let details = document.createElement("details");
-      details.style.border = "1px solid white";
-      details.style.borderRadius = "8px";
-      details.style.margin = "2px";
-      details.style.marginTop = "8px";
-      details.style.overflow = "hidden";
-      let summary = document.createElement("summary");
-      summary.textContent = chrome_i18n.subtitles;
-      summary.style.color = "aqua";
-      summary.style.textAlign = "center";
-      summary.style.cursor = "pointer";
-      summary.style.transition = "0.2s";
-      summary.style.padding = "2px 0";
-      summary.onmouseover = function () {
-        summary.style.background = "blueviolet";
-      };
-      summary.onmouseout = function () {
-        summary.style.background = null;
-      };
+    if (!Subtitles) return;
+    
+    let div_ = document.getElementById("downloadMenu");
+    let details = document.createElement("details");
+    details.style.border = "1px solid white";
+    details.style.borderRadius = "8px";
+    details.style.margin = "2px";
+    details.style.marginTop = "8px";
+    details.style.overflow = "hidden";
+    
+    // Auto-open subtitles section
+    details.setAttribute("open", "");
 
-      details.appendChild(summary);
-      div_.appendChild(details);
+    let summary = document.createElement("summary");
+    summary.textContent = chrome_i18n.subtitles;
+    summary.style.color = "aqua";
+    summary.style.textAlign = "center";
+    summary.style.cursor = "pointer";
+    summary.style.transition = "0.2s";
+    summary.style.padding = "2px 0";
+    summary.onmouseover = () => summary.style.background = "blueviolet";
+    summary.onmouseout = () => summary.style.background = null;
 
-      let hr = document.createElement("hr");
-      hr.style.margin = 0;
-      details.appendChild(hr);
+    details.appendChild(summary);
+    div_.appendChild(details);
 
-      // Add subtitle selection settings
-      let selectionDiv = document.createElement("div");
-      selectionDiv.style.padding = "8px";
-      selectionDiv.style.background = "rgba(0, 0, 0, 0.5)";
-      selectionDiv.style.marginBottom = "8px";
+    let hr = document.createElement("hr");
+    hr.style.margin = 0;
+    details.appendChild(hr);
 
-      let selectionTitle = document.createElement("div");
-      selectionTitle.textContent =
-        chrome_i18n.dualSubtitles || "Dual Subtitles:";
-      selectionTitle.style.color = "white";
-      selectionTitle.style.marginBottom = "8px";
-      selectionTitle.style.fontSize = "14px";
-      selectionDiv.appendChild(selectionTitle);
+    // Subtitle selection panel
+    let selectionDiv = document.createElement("div");
+    selectionDiv.style.padding = "8px";
+    selectionDiv.style.background = "rgba(0, 0, 0, 0.5)";
+    selectionDiv.style.marginBottom = "8px";
 
-      // Track active subtitles
-      let activeSubtitles = {};
+    let selectionTitle = document.createElement("div");
+    selectionTitle.textContent = chrome_i18n.dualSubtitles || "Dual Subtitles:";
+    selectionTitle.style.color = "white";
+    selectionTitle.style.marginBottom = "8px";
+    selectionTitle.style.fontSize = "14px";
+    selectionDiv.appendChild(selectionTitle);
 
-      // Store subtitle data
-      let subtitleData = [];
+    // Track active subtitles
+    let activeSubtitles = {};
+    let engKey, ruKey;
 
-      Subtitles.split(",").forEach(async function (e) {
-        let temp = e.split("[")[1].split("]");
-        let lang = temp[0];
-        let link = temp[1];
+    // Disable button
+    let toggleContainer = document.createElement("div");
+    toggleContainer.style.display = "flex";
+    toggleContainer.style.justifyContent = "space-between";
+    toggleContainer.style.alignItems = "center";
+    toggleContainer.style.marginBottom = "10px";
+    
+    let toggleText = document.createElement("span");
+    toggleText.textContent = chrome_i18n.disableSubtitles || "Disable Subtitles";
+    toggleText.style.color = "white";
+    toggleText.style.fontSize = "13px";
+    
+    let toggleButton = document.createElement("button");
+    toggleButton.style.background = "#ff5050";
+    toggleButton.style.border = "none";
+    toggleButton.style.borderRadius = "4px";
+    toggleButton.style.padding = "4px 8px";
+    toggleButton.style.cursor = "pointer";
+    toggleButton.style.color = "white";
+    toggleButton.style.fontSize = "12px";
+    toggleButton.textContent = "✕";
+    toggleButton.title = chrome_i18n.disableSubtitles || "Disable Subtitles";
+    
+    toggleButton.onmouseover = () => toggleButton.style.background = "#ff3030";
+    toggleButton.onmouseout = () => toggleButton.style.background = "#ff5050";
+    
+    toggleButton.onclick = function() {
+      activeSubtitles = {};
+      document.querySelectorAll('input[id^="subtitle-"]').forEach(cb => cb.checked = false);
+      updateSubtitlesDisplay({});
+    };
+    
+    toggleContainer.appendChild(toggleText);
+    toggleContainer.appendChild(toggleButton);
+    selectionDiv.appendChild(toggleContainer);
+
+    // Process subtitles
+    Subtitles.split(",").forEach(async function (e) {
+      try {
+        let [lang, link] = e.split("[")[1].split("]");
         let size = await getFileSize(link);
         size = formatBytes(size, 1);
 
-        // Store subtitle info in an array
-        subtitleData.push({
-          lang: lang,
-          link: link,
-          size: size,
-        });
+        // Auto-detect EN and RU subtitles
+        const isEnglish = lang.toLowerCase() === "english" || lang.toLowerCase() === "en";
+        const isRussian = lang.toLowerCase() === "russian" || lang.toLowerCase() === "ru" || 
+                      lang.toLowerCase() === "русский";
+        
+        if (isEnglish) {
+          engKey = lang;
+          activeSubtitles[lang] = link;
+        }
+        
+        if (isRussian) {
+          ruKey = lang;
+          activeSubtitles[lang] = link;
+        }
 
-        // Create checkbox for selection
+        // Create checkbox
         let checkboxContainer = document.createElement("div");
         checkboxContainer.style.display = "flex";
         checkboxContainer.style.alignItems = "center";
@@ -641,6 +733,7 @@ function MainScript(chrome_i18n) {
         checkbox.type = "checkbox";
         checkbox.id = "subtitle-" + lang;
         checkbox.style.marginRight = "8px";
+        checkbox.checked = isEnglish || isRussian;
 
         let label = document.createElement("label");
         label.htmlFor = "subtitle-" + lang;
@@ -652,55 +745,69 @@ function MainScript(chrome_i18n) {
         checkboxContainer.appendChild(label);
         selectionDiv.appendChild(checkboxContainer);
 
-        // Checkbox change handler
+        // Checkbox handler
         checkbox.addEventListener("change", function () {
           if (checkbox.checked) {
-            // Add subtitle to active list
             activeSubtitles[lang] = link;
           } else {
-            // Remove subtitle from active list
             delete activeSubtitles[lang];
           }
-
-          // Update subtitles display
           updateSubtitlesDisplay(activeSubtitles);
         });
 
-        // Also create the download link for each subtitle
+        // Download link
         let element = makeLink(lang, link, size);
         details.appendChild(element);
-      });
+        
+        // If this is the last subtitle being processed, apply them
+        // (This is a simplification - might not be reliable for ordering)
+        if (isEnglish || isRussian) {
+          // Order subtitles - EN first
+          if (engKey && ruKey) {
+            let orderedSubs = {};
+            if (activeSubtitles[engKey]) orderedSubs[engKey] = activeSubtitles[engKey];
+            if (activeSubtitles[ruKey]) orderedSubs[ruKey] = activeSubtitles[ruKey];
+            
+            if (Object.keys(orderedSubs).length > 0) {
+              activeSubtitles = orderedSubs;
+              updateSubtitlesDisplay(activeSubtitles);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error processing subtitle:", e);
+      }
+    });
 
-      // Add apply button
-      let applyButton = document.createElement("button");
-      applyButton.textContent =
-        chrome_i18n.applySubtitles || "Apply Selected Subtitles";
-      applyButton.style.display = "block";
-      applyButton.style.width = "100%";
-      applyButton.style.padding = "6px";
-      applyButton.style.background = "#00adef";
-      applyButton.style.border = "none";
-      applyButton.style.borderRadius = "4px";
-      applyButton.style.color = "white";
-      applyButton.style.cursor = "pointer";
-      applyButton.style.marginTop = "8px";
+    // Apply button
+    let applyButton = document.createElement("button");
+    applyButton.textContent = chrome_i18n.applySubtitles || "Apply Selected Subtitles";
+    applyButton.style.display = "block";
+    applyButton.style.width = "100%";
+    applyButton.style.padding = "6px";
+    applyButton.style.background = "#00adef";
+    applyButton.style.border = "none";
+    applyButton.style.borderRadius = "4px";
+    applyButton.style.color = "white";
+    applyButton.style.cursor = "pointer";
+    applyButton.style.marginTop = "8px";
 
-      applyButton.onmouseover = function () {
-        applyButton.style.background = "#0089c0";
-      };
+    applyButton.onmouseover = () => applyButton.style.background = "#0089c0";
+    applyButton.onmouseout = () => applyButton.style.background = "#00adef";
+    
+    applyButton.onclick = function () {
+      // Reorder subtitles if both EN and RU are present
+      if (engKey && ruKey && activeSubtitles[engKey] && activeSubtitles[ruKey]) {
+        let orderedSubs = {};
+        orderedSubs[engKey] = activeSubtitles[engKey]; 
+        orderedSubs[ruKey] = activeSubtitles[ruKey];
+        activeSubtitles = orderedSubs;
+      }
+      updateSubtitlesDisplay(activeSubtitles);
+    };
 
-      applyButton.onmouseout = function () {
-        applyButton.style.background = "#00adef";
-      };
-
-      applyButton.onclick = function () {
-        // Apply subtitle selections
-        updateSubtitlesDisplay(activeSubtitles);
-      };
-
-      selectionDiv.appendChild(applyButton);
-      details.insertBefore(selectionDiv, hr.nextSibling);
-    }
+    selectionDiv.appendChild(applyButton);
+    details.insertBefore(selectionDiv, hr.nextSibling);
   }
 
   // Function to update the subtitles display
