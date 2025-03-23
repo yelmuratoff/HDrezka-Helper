@@ -877,7 +877,7 @@ function MainScript(chrome_i18n) {
     // Remove existing subtitle display div from the player
     document
       .querySelectorAll(
-        ".multi-subtitle-display, .multi-subtitle-display-fullscreen"
+        ".multi-subtitle-container"
       )
       .forEach((el) => {
         el.remove();
@@ -885,7 +885,7 @@ function MainScript(chrome_i18n) {
 
     // Hide existing player subtitles
     const playerSubtitles = document.querySelector(
-      '#oframecdnplayer > pjsdiv[style*="bottom: 50px"]'
+      '#oframecdnplayer > pjsdiv[style*="bottom: 50px"]:not(.multi-subtitle-container)'
     );
     if (playerSubtitles) {
       playerSubtitles.style.display = "none";
@@ -902,9 +902,9 @@ function MainScript(chrome_i18n) {
     let contextMenuEnabled = false;
 
     // Function to create subtitle container
-    function createSubtitlesContainer(parent, className) {
+    function createSubtitlesContainer(parent) {
       let container = document.createElement("pjsdiv");
-      container.className = className;
+      container.className = "multi-subtitle-container";
       container.style.position = "absolute";
       container.style.width = "50%";
       container.style.left = "25%";
@@ -927,11 +927,12 @@ function MainScript(chrome_i18n) {
       return container;
     }
 
-    // Create container for normal mode
-    const subsContainer = createSubtitlesContainer(
-      playerElement,
-      "multi-subtitle-display"
-    );
+    // Create container for current player mode (normal or fullscreen)
+    const currentContainer = document.fullscreenElement || document.webkitFullscreenElement || playerElement;
+    const subsContainer = createSubtitlesContainer(currentContainer);
+
+    // Store active cues content to reuse when recreating containers
+    const activeCuesContent = {};
 
     // Enable context menu on subtitles - only setup once
     function enableContextMenu() {
@@ -943,8 +944,7 @@ function MainScript(chrome_i18n) {
         let path = e.composedPath();
         for (const element of path) {
           if (element.classList && 
-             (element.classList.contains('multi-subtitle-display') || 
-              element.classList.contains('multi-subtitle-display-fullscreen') ||
+             (element.classList.contains('multi-subtitle-container') ||
               element.classList.contains('subtitle-text') ||
               element.classList.contains('subtitle-span'))) {
             // Allow default browser context menu
@@ -964,7 +964,7 @@ function MainScript(chrome_i18n) {
     const playerObserver = new MutationObserver(function(mutations) {
       // Handle subtitle display hiding
       const playerSubtitles = document.querySelector(
-        '#oframecdnplayer > pjsdiv[style*="bottom: 50px"]:not(.multi-subtitle-display):not(.multi-subtitle-display-fullscreen)'
+        '#oframecdnplayer > pjsdiv[style*="bottom: 50px"]:not(.multi-subtitle-container)'
       );
       if (playerSubtitles) {
         playerSubtitles.style.display = "none";
@@ -1028,42 +1028,34 @@ function MainScript(chrome_i18n) {
 
       // Monitor cue changes
       trackObj.oncuechange = function () {
-        const isFullscreen = !!(
-          document.fullscreenElement || document.webkitFullscreenElement
+        // Find the current subtitle container that might have moved to a different parent
+        const currentSubtitlesContainer = document.querySelector(".multi-subtitle-container");
+        if (!currentSubtitlesContainer) return;
+        
+        // Get the current subtitle element from container
+        const subElement = currentSubtitlesContainer.querySelector(
+          `.subtitle-text[data-lang="${lang}"]`
         );
+        if (!subElement) return;
 
-        // Get appropriate subtitle elements
-        let containers = [subsContainer];
-        if (isFullscreen) {
-          const fullscreenContainer = document.querySelector(
-            ".multi-subtitle-display-fullscreen"
-          );
-          if (fullscreenContainer) {
-            containers = [fullscreenContainer];
-          }
-        }
-
-        for (let container of containers) {
-          const subElement = container.querySelector(
-            `.subtitle-text[data-lang="${lang}"]`
-          );
-          if (!subElement) continue;
-
-          if (this.activeCues && this.activeCues.length > 0) {
-            let cueText = this.activeCues[0].text;
-            // Set font size based on language position (first is larger and bold, second is smaller)
-            const fontSize = i === 0 ? "18px" : "14px";
-            const fontWeight = i === 0 ? "700" : "400";
-            
-            // Use the precomputed style string and just append variable parts
-            const spanHTML = `<span 
-              style="${baseStyle}font-weight:${fontWeight};font-size:${fontSize};"
-              class="subtitle-span">${cueText}</span>`;
-            
-            subElement.innerHTML = spanHTML;
-          } else {
-            subElement.innerHTML = "";
-          }
+        if (this.activeCues && this.activeCues.length > 0) {
+          let cueText = this.activeCues[0].text;
+          // Set font size based on language position (first is larger and bold, second is smaller)
+          const fontSize = i === 0 ? "18px" : "14px";
+          const fontWeight = i === 0 ? "700" : "400";
+          
+          // Use the precomputed style string and just append variable parts
+          const spanHTML = `<span 
+            style="${baseStyle}font-weight:${fontWeight};font-size:${fontSize};"
+            class="subtitle-span">${cueText}</span>`;
+          
+          subElement.innerHTML = spanHTML;
+          
+          // Store content for recreation when switching modes
+          activeCuesContent[lang] = spanHTML;
+        } else {
+          subElement.innerHTML = "";
+          activeCuesContent[lang] = "";
         }
       };
     }
@@ -1074,51 +1066,37 @@ function MainScript(chrome_i18n) {
         document.fullscreenElement || document.webkitFullscreenElement
       );
 
-      // Remove any existing fullscreen subtitle container
+      // Remove current subtitle container
       document
-        .querySelectorAll(".multi-subtitle-display-fullscreen")
+        .querySelectorAll(".multi-subtitle-container")
         .forEach((el) => el.remove());
 
-      // Update visibility of normal mode container
-      if (subsContainer) {
-        subsContainer.style.display = isFullscreen ? "none" : "";
-      }
+      // Create new container in the appropriate parent element
+      const newParent = 
+        document.fullscreenElement || document.webkitFullscreenElement || playerElement;
+      
+      // Create new container
+      const newContainer = createSubtitlesContainer(newParent);
 
-      // Create fullscreen container if needed
-      if (isFullscreen) {
-        const fullscreenElement =
-          document.fullscreenElement || document.webkitFullscreenElement;
-        if (!fullscreenElement) return;
+      // Create subtitle elements in the new container and restore content
+      for (let i = 0; i < activeLangs.length; i++) {
+        let lang = activeLangs[i];
 
-        // Create new container for fullscreen
-        const fullscreenContainer = createSubtitlesContainer(
-          fullscreenElement,
-          "multi-subtitle-display-fullscreen"
-        );
-
-        // Create subtitle elements in fullscreen container
-        for (let i = 0; i < activeLangs.length; i++) {
-          let lang = activeLangs[i];
-
-          let subDisplay = document.createElement("pjsdiv");
-          subDisplay.dataset.lang = lang;
-          subDisplay.className = "subtitle-text";
-          
-          // Add right-click handler directly
-          subDisplay.addEventListener('contextmenu', function(e) {
-            e.stopPropagation();
-          }, true);
-          
-          fullscreenContainer.appendChild(subDisplay);
-
-          // Copy current content if available
-          const origSubElement = subsContainer.querySelector(
-            `.subtitle-text[data-lang="${lang}"]`
-          );
-          if (origSubElement && origSubElement.innerHTML) {
-            subDisplay.innerHTML = origSubElement.innerHTML;
-          }
+        let subDisplay = document.createElement("pjsdiv");
+        subDisplay.dataset.lang = lang;
+        subDisplay.className = "subtitle-text";
+        
+        // Add right-click handler directly
+        subDisplay.addEventListener('contextmenu', function(e) {
+          e.stopPropagation();
+        }, true);
+        
+        // Restore any active content
+        if (activeCuesContent[lang]) {
+          subDisplay.innerHTML = activeCuesContent[lang];
         }
+        
+        newContainer.appendChild(subDisplay);
       }
     }
 
@@ -1126,18 +1104,8 @@ function MainScript(chrome_i18n) {
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
 
-    // Initial fullscreen check
-    handleFullscreenChange();
-
-    // Listen for fullscreen button clicks
-    const fullscreenButton = document.querySelector(
-      'pjsdiv[style*="fullscreen"]'
-    );
-    if (fullscreenButton) {
-      fullscreenButton.addEventListener("click", function () {
-        setTimeout(handleFullscreenChange, 500);
-      });
-    }
+    // Initial check - ensure we have the right container at start
+    setTimeout(handleFullscreenChange, 0);
 
     // Check fullscreen state during playback - but throttle the checks
     let lastCheckTime = 0;
@@ -1151,10 +1119,13 @@ function MainScript(chrome_i18n) {
         document.fullscreenElement || document.webkitFullscreenElement
       );
       
-      if (
-        isFullscreen &&
-        !document.querySelector(".multi-subtitle-display-fullscreen")
-      ) {
+      // If we're in fullscreen but don't have a container, create one
+      const fullscreenContainer = document.querySelector(".multi-subtitle-container");
+      const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
+      
+      if (!fullscreenContainer || 
+          (isFullscreen && fullscreenContainer.parentElement !== fullscreenElement) ||
+          (!isFullscreen && fullscreenContainer.parentElement !== playerElement)) {
         handleFullscreenChange();
       }
     });
