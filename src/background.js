@@ -201,6 +201,23 @@ function MainScript(chrome_i18n) {
         subtree: true,
       });
     }
+    
+    // Add listener for translator changes to remove subtitles when switching audio tracks
+    const translatorsList = document.getElementById("translators-list");
+    if (translatorsList) {
+      translatorsList.addEventListener("click", function(e) {
+        if (e.target.tagName === "LI" || e.target.closest("li")) {
+          // Remove subtitles when changing translator/audio
+          updateSubtitlesDisplay({});
+          
+          // Clear subtitle checkboxes if menu is open
+          const subtitleCheckboxes = document.querySelectorAll('input[id^="subtitle-"]');
+          if (subtitleCheckboxes.length > 0) {
+            subtitleCheckboxes.forEach(cb => cb.checked = false);
+          }
+        }
+      });
+    }
   }
 
   function main() {
@@ -258,11 +275,40 @@ function MainScript(chrome_i18n) {
         
         // Apply the ordered subtitles
         updateSubtitlesDisplay(orderedSubtitles);
+        
+        // Also observe translator changes to remove subtitles when switching audio
+        observeTranslatorChanges();
       } else {
         // Apply whatever subtitles we found
         updateSubtitlesDisplay(activeSubtitles);
+        
+        // Also observe translator changes
+        observeTranslatorChanges();
       }
     }
+  }
+  
+  // Function to observe translator changes and remove subtitles when audio changes
+  function observeTranslatorChanges() {
+    const translatorsList = document.getElementById("translators-list");
+    if (!translatorsList) return;
+    
+    // Create an observer to watch for active class changes on translators
+    const translatorObserver = new MutationObserver(function(mutations) {
+      mutations.forEach(function(mutation) {
+        if (mutation.attributeName === "class" && 
+            mutation.target.classList.contains("active")) {
+          // Audio track changed - remove subtitles
+          updateSubtitlesDisplay({});
+        }
+      });
+    });
+    
+    // Observe all translator items for class changes
+    const translatorItems = translatorsList.querySelectorAll("li");
+    translatorItems.forEach(item => {
+      translatorObserver.observe(item, { attributes: true });
+    });
   }
 
   function clearTrash(data) {
