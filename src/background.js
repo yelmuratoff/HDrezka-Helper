@@ -755,7 +755,8 @@ function MainScript(chrome_i18n) {
       container.style.bottom = "40px";
       container.style.textAlign = "center";
       container.style.zIndex = "9999";
-      container.style.pointerEvents = "none";
+      container.style.pointerEvents = "auto";
+      container.style.userSelect = "text";
       container.style.display = "flex";
       container.style.flexDirection = "column";
       container.style.alignItems = "center";
@@ -769,6 +770,46 @@ function MainScript(chrome_i18n) {
       playerElement,
       "multi-subtitle-display"
     );
+
+    // Enable context menu on subtitles
+    function enableContextMenu() {
+      // Prevent blocking of context menu on the player
+      playerElement.addEventListener('contextmenu', function(e) {
+        // Check if right-click was on a subtitle element
+        let path = e.composedPath();
+        for (const element of path) {
+          if (element.classList && 
+             (element.classList.contains('multi-subtitle-display') || 
+              element.classList.contains('multi-subtitle-display-fullscreen') ||
+              element.classList.contains('subtitle-text'))) {
+            // Allow default browser context menu for subtitle elements
+            e.stopPropagation();
+            return true;
+          }
+        }
+      }, true);
+      
+      // Apply to both subtitle containers
+      document.querySelectorAll('.multi-subtitle-display, .multi-subtitle-display-fullscreen').forEach(container => {
+        container.addEventListener('contextmenu', function(e) {
+          e.stopPropagation();
+          return true;
+        }, true);
+      });
+    }
+    
+    // Call the function immediately
+    enableContextMenu();
+    
+    // Watch for DOM changes to reapply if needed
+    const subtitleObserver = new MutationObserver(function() {
+      enableContextMenu();
+    });
+    
+    subtitleObserver.observe(playerElement, {
+      childList: true,
+      subtree: true
+    });
 
     // Process all selected subtitles
     let activeLangs = Object.keys(activeSubtitlesList);
@@ -824,7 +865,38 @@ function MainScript(chrome_i18n) {
             // Set font size based on language position (first is larger and bold, second is smaller)
             const fontSize = i === 0 ? "18px" : "14px";
             const fontWeight = i === 0 ? "700" : "400";
-            subElement.innerHTML = `<span style="background-color:rgba(0,0,0,0.7);padding:3px 6px;border-radius:3px;line-height:1.4;font-weight:${fontWeight};color:white;display:inline-block;margin-bottom:2px;max-width:100%;white-space:normal;word-break:break-word;font-size:${fontSize};">${cueText}</span>`;
+            // Create a span element for subtitle text with enhanced right-click support
+            const spanHTML = `<span 
+              style="background-color:rgba(0,0,0,0.7);
+                    padding:3px 6px;
+                    border-radius:3px;
+                    line-height:1.4;
+                    font-weight:${fontWeight};
+                    color:white;
+                    display:inline-block;
+                    margin-bottom:2px;
+                    max-width:100%;
+                    white-space:normal;
+                    word-break:break-word;
+                    font-size:${fontSize};
+                    user-select:text;
+                    pointer-events:auto;
+                    -webkit-user-select:text;
+                    -moz-user-select:text;
+                    -ms-user-select:text;"
+              class="subtitle-span">${cueText}</span>`;
+            
+            subElement.innerHTML = spanHTML;
+            
+            // Add event listener after rendering
+            setTimeout(() => {
+              const span = subElement.querySelector('.subtitle-span');
+              if (span) {
+                span.addEventListener('contextmenu', function(e) {
+                  e.stopPropagation();
+                }, true);
+              }
+            }, 0);
           } else {
             subElement.innerHTML = "";
           }
@@ -877,6 +949,9 @@ function MainScript(chrome_i18n) {
             subDisplay.innerHTML = origSubElement.innerHTML;
           }
         }
+        
+        // Re-enable context menu for fullscreen subtitles
+        setTimeout(enableContextMenu, 100);
       }
     }
 
