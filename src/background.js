@@ -60,6 +60,8 @@ function executeScript(tabId){
 			downloadStr: browser.i18n.getMessage("downloadStr"),
 			downloadLinkDesc: browser.i18n.getMessage("downloadLinkDesc"),
 			subtitles: browser.i18n.getMessage("subtitles"),
+			dualSubtitles: browser.i18n.getMessage("dualSubtitles"),
+			applySubtitles: browser.i18n.getMessage("applySubtitles"),
 			cancelDownload: browser.i18n.getMessage("cancelDownload"),
 			donateTitle: browser.i18n.getMessage("donateTitle"),
 			donateButton: browser.i18n.getMessage("donateButton"),
@@ -540,6 +542,25 @@ function MainScript(chrome_i18n) {
 			hr.style.margin = 0;
 			details.appendChild(hr);
 
+			// Add subtitle selection settings
+			let selectionDiv = document.createElement("div");
+			selectionDiv.style.padding = "8px";
+			selectionDiv.style.background = "rgba(0, 0, 0, 0.5)";
+			selectionDiv.style.marginBottom = "8px";
+			
+			let selectionTitle = document.createElement("div");
+			selectionTitle.textContent = chrome_i18n.dualSubtitles || "Dual Subtitles:";
+			selectionTitle.style.color = "white";
+			selectionTitle.style.marginBottom = "8px";
+			selectionTitle.style.fontSize = "14px";
+			selectionDiv.appendChild(selectionTitle);
+			
+			// Track active subtitles
+			let activeSubtitles = {};
+			
+			// Store subtitle data
+			let subtitleData = [];
+
 			Subtitles.split(",").forEach(async function(e){
 				let temp = e.split("[")[1].split("]");
 				let lang = temp[0];
@@ -547,10 +568,278 @@ function MainScript(chrome_i18n) {
 				let size = await getFileSize(link);
 				size = formatBytes(size, 1);
 
+				// Store subtitle info in an array
+				subtitleData.push({
+					lang: lang,
+					link: link,
+					size: size
+				});
+
+				// Create checkbox for selection
+				let checkboxContainer = document.createElement("div");
+				checkboxContainer.style.display = "flex";
+				checkboxContainer.style.alignItems = "center";
+				checkboxContainer.style.marginBottom = "4px";
+				
+				let checkbox = document.createElement("input");
+				checkbox.type = "checkbox";
+				checkbox.id = "subtitle-" + lang;
+				checkbox.style.marginRight = "8px";
+				
+				let label = document.createElement("label");
+				label.htmlFor = "subtitle-" + lang;
+				label.textContent = lang;
+				label.style.color = "white";
+				label.style.fontSize = "12px";
+				
+				checkboxContainer.appendChild(checkbox);
+				checkboxContainer.appendChild(label);
+				selectionDiv.appendChild(checkboxContainer);
+				
+				// Checkbox change handler
+				checkbox.addEventListener("change", function() {
+					if (checkbox.checked) {
+						// Add subtitle to active list
+						activeSubtitles[lang] = link;
+					} else {
+						// Remove subtitle from active list
+						delete activeSubtitles[lang];
+					}
+					
+					// Update subtitles display
+					updateSubtitlesDisplay(activeSubtitles);
+				});
+
+				// Also create the download link for each subtitle
 				let element = makeLink(lang, link, size);
 				details.appendChild(element);
-			})
+			});
+			
+			// Add apply button
+			let applyButton = document.createElement("button");
+			applyButton.textContent = chrome_i18n.applySubtitles || "Apply Selected Subtitles";
+			applyButton.style.display = "block";
+			applyButton.style.width = "100%";
+			applyButton.style.padding = "6px";
+			applyButton.style.background = "#00adef";
+			applyButton.style.border = "none";
+			applyButton.style.borderRadius = "4px";
+			applyButton.style.color = "white";
+			applyButton.style.cursor = "pointer";
+			applyButton.style.marginTop = "8px";
+			
+			applyButton.onmouseover = function() {
+				applyButton.style.background = "#0089c0";
+			};
+			
+			applyButton.onmouseout = function() {
+				applyButton.style.background = "#00adef";
+			};
+			
+			applyButton.onclick = function() {
+				// Apply subtitle selections
+				updateSubtitlesDisplay(activeSubtitles);
+			};
+			
+			selectionDiv.appendChild(applyButton);
+			details.insertBefore(selectionDiv, hr.nextSibling);
 		}
+	}
+
+	// Function to update the subtitles display
+	function updateSubtitlesDisplay(activeSubtitlesList) {
+		// Get video element
+		let video = document.querySelector('#player video');
+		if (!video) return;
+		
+		// Remove existing subtitle tracks
+		while (video.textTracks.length > 0) {
+			const lastTrack = video.textTracks[video.textTracks.length - 1];
+			if (lastTrack && lastTrack.mode) {
+				lastTrack.mode = "disabled";
+			}
+			const trackElement = video.querySelector('track:last-child');
+			if (trackElement) {
+				video.removeChild(trackElement);
+			}
+		}
+		
+		// Remove existing subtitle display div from the player
+		document.querySelectorAll('.multi-subtitle-display, .multi-subtitle-display-fullscreen').forEach(el => {
+			el.remove();
+		});
+		
+		// Hide existing player subtitles
+		const playerSubtitles = document.querySelector('#oframecdnplayer > pjsdiv[style*="bottom: 50px"]');
+		if (playerSubtitles) {
+			playerSubtitles.style.display = "none";
+		}
+		
+		// No subtitles selected, exit early
+		if (Object.keys(activeSubtitlesList).length === 0) return;
+
+		// Find the player element
+		const playerElement = document.getElementById('oframecdnplayer');
+		if (!playerElement) return;
+		
+		// Function to create subtitle container
+		function createSubtitlesContainer(parent, className) {
+			let container = document.createElement('pjsdiv');
+			container.className = className;
+			container.style.position = 'absolute';
+			container.style.width = '100%';
+			container.style.left = '0';
+			container.style.bottom = '90px';
+			container.style.textAlign = 'center';
+			container.style.zIndex = '9999';
+			container.style.pointerEvents = 'none';
+			container.style.display = 'flex';
+			container.style.flexDirection = 'column';
+			container.style.alignItems = 'center';
+			parent.appendChild(container);
+			return container;
+		}
+		
+		// Create container for normal mode
+		const subsContainer = createSubtitlesContainer(playerElement, 'multi-subtitle-display');
+		
+		// Process all selected subtitles
+		let activeLangs = Object.keys(activeSubtitlesList);
+		for (let i = 0; i < activeLangs.length; i++) {
+			let lang = activeLangs[i];
+			let url = activeSubtitlesList[lang];
+			
+			// Create track element for loading subtitles
+			let track = document.createElement('track');
+			track.kind = 'subtitles';
+			track.label = lang;
+			track.srclang = lang.toLowerCase().substring(0, 2);
+			track.src = url;
+			
+			// Add track to video
+			video.appendChild(track);
+			
+			// Create display element for this subtitle
+			let subDisplay = document.createElement('pjsdiv');
+			subDisplay.dataset.lang = lang;
+			subDisplay.className = 'subtitle-text';
+			subsContainer.appendChild(subDisplay);
+			
+			// Enable track and set up event listeners
+			const trackObj = video.textTracks[video.textTracks.length - 1];
+			trackObj.mode = "hidden";
+			
+			// Set color based on language position (first is white, second is yellow)
+			const textColor = i === 0 ? 'white' : 'yellow';
+			
+			// Monitor cue changes
+			trackObj.oncuechange = function() {
+				const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+				
+				// Get appropriate subtitle elements
+				let containers = [subsContainer];
+				if (isFullscreen) {
+					const fullscreenContainer = document.querySelector('.multi-subtitle-display-fullscreen');
+					if (fullscreenContainer) {
+						containers = [fullscreenContainer];
+					}
+				}
+				
+				for (let container of containers) {
+					const subElement = container.querySelector(`.subtitle-text[data-lang="${lang}"]`);
+					if (!subElement) continue;
+					
+					if (this.activeCues && this.activeCues.length > 0) {
+						let cueText = this.activeCues[0].text;
+						subElement.innerHTML = `<span style="background-color:rgba(0,0,0,0.7);padding:5px 10px;border-radius:3px;line-height:1.8;font-weight:400;color:${textColor};display:block;margin-bottom:5px;max-width:90vw;white-space:normal;word-break:break-word;">${cueText}</span>`;
+					} else {
+						subElement.innerHTML = '';
+					}
+				}
+			};
+		}
+		
+		// Function to handle fullscreen state
+		function handleFullscreenChange() {
+			const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+			
+			// Remove any existing fullscreen subtitle container
+			document.querySelectorAll('.multi-subtitle-display-fullscreen').forEach(el => el.remove());
+			
+			// Update visibility of normal mode container
+			if (subsContainer) {
+				subsContainer.style.display = isFullscreen ? 'none' : '';
+			}
+			
+			// Create fullscreen container if needed
+			if (isFullscreen) {
+				const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
+				if (!fullscreenElement) return;
+				
+				// Create new container for fullscreen
+				const fullscreenContainer = createSubtitlesContainer(fullscreenElement, 'multi-subtitle-display-fullscreen');
+				
+				// Create subtitle elements in fullscreen container
+				for (let i = 0; i < activeLangs.length; i++) {
+					let lang = activeLangs[i];
+					
+					let subDisplay = document.createElement('pjsdiv');
+					subDisplay.dataset.lang = lang;
+					subDisplay.className = 'subtitle-text';
+					fullscreenContainer.appendChild(subDisplay);
+					
+					// Copy current content if available
+					const origSubElement = subsContainer.querySelector(`.subtitle-text[data-lang="${lang}"]`);
+					if (origSubElement && origSubElement.innerHTML) {
+						subDisplay.innerHTML = origSubElement.innerHTML;
+					}
+				}
+			}
+		}
+		
+		// Listen for fullscreen changes
+		document.addEventListener('fullscreenchange', handleFullscreenChange);
+		document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+		
+		// Initial fullscreen check
+		handleFullscreenChange();
+		
+		// Listen for fullscreen button clicks
+		const fullscreenButton = document.querySelector('pjsdiv[style*="fullscreen"]');
+		if (fullscreenButton) {
+			fullscreenButton.addEventListener('click', function() {
+				setTimeout(handleFullscreenChange, 500);
+			});
+		}
+		
+		// Hide player subtitles
+		const subtitlesObserver = new MutationObserver(function() {
+			const playerSubtitles = document.querySelector('#oframecdnplayer > pjsdiv[style*="bottom: 50px"]:not(.multi-subtitle-display):not(.multi-subtitle-display-fullscreen)');
+			if (playerSubtitles) {
+				playerSubtitles.style.display = "none";
+			}
+		});
+		
+		subtitlesObserver.observe(playerElement, {
+			childList: true,
+			subtree: true,
+			attributes: true
+		});
+		
+		// Check fullscreen state during playback
+		video.addEventListener('timeupdate', function() {
+			// Hide player subtitles
+			const playerSubtitles = document.querySelector('#oframecdnplayer > pjsdiv[style*="bottom: 50px"]:not(.multi-subtitle-display):not(.multi-subtitle-display-fullscreen)');
+			if (playerSubtitles) {
+				playerSubtitles.style.display = "none";
+			}
+			
+			// Check if we need to recreate fullscreen subtitles
+			const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+			if (isFullscreen && !document.querySelector('.multi-subtitle-display-fullscreen')) {
+				handleFullscreenChange();
+			}
+		});
 	}
 
 	var timer;

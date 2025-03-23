@@ -127,5 +127,11 @@
    },
    "chunk_size": {
       "message": "Chunk size"
+   },
+   "dualSubtitles": {
+      "message": "Dual Subtitles:"
+   },
+   "applySubtitles": {
+      "message": "Apply Selected Subtitles"
    }
 }

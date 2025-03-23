@@ -127,5 +127,11 @@
    },
    "chunk_size": {
       "message": "Розмір фрагменту"
+   },
+   "dualSubtitles": {
+      "message": "Подвійні субтитри:"
+   },
+   "applySubtitles": {
+      "message": "Застосувати вибрані субтитри"
    }
 }
