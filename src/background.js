@@ -201,19 +201,21 @@ function MainScript(chrome_i18n) {
         subtree: true,
       });
     }
-    
+
     // Add listener for translator changes to remove subtitles when switching audio tracks
     const translatorsList = document.getElementById("translators-list");
     if (translatorsList) {
-      translatorsList.addEventListener("click", function(e) {
+      translatorsList.addEventListener("click", function (e) {
         if (e.target.tagName === "LI" || e.target.closest("li")) {
           // Remove subtitles when changing translator/audio
           updateSubtitlesDisplay({});
-          
+
           // Clear subtitle checkboxes if menu is open
-          const subtitleCheckboxes = document.querySelectorAll('input[id^="subtitle-"]');
+          const subtitleCheckboxes = document.querySelectorAll(
+            'input[id^="subtitle-"]'
+          );
           if (subtitleCheckboxes.length > 0) {
-            subtitleCheckboxes.forEach(cb => cb.checked = false);
+            subtitleCheckboxes.forEach((cb) => (cb.checked = false));
           }
         }
       });
@@ -224,7 +226,7 @@ function MainScript(chrome_i18n) {
     let arr = clearTrash(CDNPlayerInfo.streams).split(",");
     createButton();
     createDownloadMenu(arr);
-    
+
     // Automatically apply EN and RU subtitles without opening menu
     if (args.subtitles) {
       autoApplySubtitles();
@@ -240,23 +242,27 @@ function MainScript(chrome_i18n) {
 
   // Automatically apply EN and RU subtitles without user interaction
   function autoApplySubtitles() {
-    if (!CDNPlayerInfo.subtitle || !document.getElementById("oframecdnplayer")) return;
-    
+    if (!CDNPlayerInfo.subtitle || !document.getElementById("oframecdnplayer"))
+      return;
+
     const playerElement = document.getElementById("oframecdnplayer");
     const activeSubtitles = {};
     let engKey, ruKey;
-    
+
     // Parse subtitles and auto-enable EN and RU
-    CDNPlayerInfo.subtitle.split(",").forEach(function(e) {
+    CDNPlayerInfo.subtitle.split(",").forEach(function (e) {
       try {
         const [lang, link] = e.split("[")[1].split("]");
-        
+
         // Direct check for English or Russian subtitles
         if (lang.toLowerCase() === "english" || lang.toLowerCase() === "en") {
           engKey = lang;
           activeSubtitles[lang] = link;
-        } else if (lang.toLowerCase() === "russian" || lang.toLowerCase() === "ru" || 
-                  lang.toLowerCase() === "русский") {
+        } else if (
+          lang.toLowerCase() === "russian" ||
+          lang.toLowerCase() === "ru" ||
+          lang.toLowerCase() === "русский"
+        ) {
           ruKey = lang;
           activeSubtitles[lang] = link;
         }
@@ -264,7 +270,7 @@ function MainScript(chrome_i18n) {
         console.error("Error parsing subtitle:", e);
       }
     });
-    
+
     // If both EN and RU found, reorder them (EN first) and apply
     if (Object.keys(activeSubtitles).length > 0) {
       // Create ordered object with English first if both are present
@@ -272,41 +278,43 @@ function MainScript(chrome_i18n) {
         const orderedSubtitles = {};
         orderedSubtitles[engKey] = activeSubtitles[engKey];
         orderedSubtitles[ruKey] = activeSubtitles[ruKey];
-        
+
         // Apply the ordered subtitles
         updateSubtitlesDisplay(orderedSubtitles);
-        
+
         // Also observe translator changes to remove subtitles when switching audio
         observeTranslatorChanges();
       } else {
         // Apply whatever subtitles we found
         updateSubtitlesDisplay(activeSubtitles);
-        
+
         // Also observe translator changes
         observeTranslatorChanges();
       }
     }
   }
-  
+
   // Function to observe translator changes and remove subtitles when audio changes
   function observeTranslatorChanges() {
     const translatorsList = document.getElementById("translators-list");
     if (!translatorsList) return;
-    
+
     // Create an observer to watch for active class changes on translators
-    const translatorObserver = new MutationObserver(function(mutations) {
-      mutations.forEach(function(mutation) {
-        if (mutation.attributeName === "class" && 
-            mutation.target.classList.contains("active")) {
+    const translatorObserver = new MutationObserver(function (mutations) {
+      mutations.forEach(function (mutation) {
+        if (
+          mutation.attributeName === "class" &&
+          mutation.target.classList.contains("active")
+        ) {
           // Audio track changed - remove subtitles
           updateSubtitlesDisplay({});
         }
       });
     });
-    
+
     // Observe all translator items for class changes
     const translatorItems = translatorsList.querySelectorAll("li");
-    translatorItems.forEach(item => {
+    translatorItems.forEach((item) => {
       translatorObserver.observe(item, { attributes: true });
     });
   }
@@ -665,7 +673,7 @@ function MainScript(chrome_i18n) {
   function addSubtitles() {
     const Subtitles = CDNPlayerInfo.subtitle;
     if (!Subtitles) return;
-    
+
     let div_ = document.getElementById("downloadMenu");
     let details = document.createElement("details");
     details.style.border = "1px solid white";
@@ -673,7 +681,7 @@ function MainScript(chrome_i18n) {
     details.style.margin = "2px";
     details.style.marginTop = "8px";
     details.style.overflow = "hidden";
-    
+
     // Auto-open subtitles section
     details.setAttribute("open", "");
 
@@ -684,8 +692,8 @@ function MainScript(chrome_i18n) {
     summary.style.cursor = "pointer";
     summary.style.transition = "0.2s";
     summary.style.padding = "2px 0";
-    summary.onmouseover = () => summary.style.background = "blueviolet";
-    summary.onmouseout = () => summary.style.background = null;
+    summary.onmouseover = () => (summary.style.background = "blueviolet");
+    summary.onmouseout = () => (summary.style.background = null);
 
     details.appendChild(summary);
     div_.appendChild(details);
@@ -717,12 +725,13 @@ function MainScript(chrome_i18n) {
     toggleContainer.style.justifyContent = "space-between";
     toggleContainer.style.alignItems = "center";
     toggleContainer.style.marginBottom = "10px";
-    
+
     let toggleText = document.createElement("span");
-    toggleText.textContent = chrome_i18n.disableSubtitles || "Disable Subtitles";
+    toggleText.textContent =
+      chrome_i18n.disableSubtitles || "Disable Subtitles";
     toggleText.style.color = "white";
     toggleText.style.fontSize = "13px";
-    
+
     let toggleButton = document.createElement("button");
     toggleButton.style.background = "#ff5050";
     toggleButton.style.border = "none";
@@ -733,16 +742,19 @@ function MainScript(chrome_i18n) {
     toggleButton.style.fontSize = "12px";
     toggleButton.textContent = "✕";
     toggleButton.title = chrome_i18n.disableSubtitles || "Disable Subtitles";
-    
-    toggleButton.onmouseover = () => toggleButton.style.background = "#ff3030";
-    toggleButton.onmouseout = () => toggleButton.style.background = "#ff5050";
-    
-    toggleButton.onclick = function() {
+
+    toggleButton.onmouseover = () =>
+      (toggleButton.style.background = "#ff3030");
+    toggleButton.onmouseout = () => (toggleButton.style.background = "#ff5050");
+
+    toggleButton.onclick = function () {
       activeSubtitles = {};
-      document.querySelectorAll('input[id^="subtitle-"]').forEach(cb => cb.checked = false);
+      document
+        .querySelectorAll('input[id^="subtitle-"]')
+        .forEach((cb) => (cb.checked = false));
       updateSubtitlesDisplay({});
     };
-    
+
     toggleContainer.appendChild(toggleText);
     toggleContainer.appendChild(toggleButton);
     selectionDiv.appendChild(toggleContainer);
@@ -755,15 +767,18 @@ function MainScript(chrome_i18n) {
         size = formatBytes(size, 1);
 
         // Auto-detect EN and RU subtitles
-        const isEnglish = lang.toLowerCase() === "english" || lang.toLowerCase() === "en";
-        const isRussian = lang.toLowerCase() === "russian" || lang.toLowerCase() === "ru" || 
-                      lang.toLowerCase() === "русский";
-        
+        const isEnglish =
+          lang.toLowerCase() === "english" || lang.toLowerCase() === "en";
+        const isRussian =
+          lang.toLowerCase() === "russian" ||
+          lang.toLowerCase() === "ru" ||
+          lang.toLowerCase() === "русский";
+
         if (isEnglish) {
           engKey = lang;
           activeSubtitles[lang] = link;
         }
-        
+
         if (isRussian) {
           ruKey = lang;
           activeSubtitles[lang] = link;
@@ -804,16 +819,18 @@ function MainScript(chrome_i18n) {
         // Download link
         let element = makeLink(lang, link, size);
         details.appendChild(element);
-        
+
         // If this is the last subtitle being processed, apply them
         // (This is a simplification - might not be reliable for ordering)
         if (isEnglish || isRussian) {
           // Order subtitles - EN first
           if (engKey && ruKey) {
             let orderedSubs = {};
-            if (activeSubtitles[engKey]) orderedSubs[engKey] = activeSubtitles[engKey];
-            if (activeSubtitles[ruKey]) orderedSubs[ruKey] = activeSubtitles[ruKey];
-            
+            if (activeSubtitles[engKey])
+              orderedSubs[engKey] = activeSubtitles[engKey];
+            if (activeSubtitles[ruKey])
+              orderedSubs[ruKey] = activeSubtitles[ruKey];
+
             if (Object.keys(orderedSubs).length > 0) {
               activeSubtitles = orderedSubs;
               updateSubtitlesDisplay(activeSubtitles);
@@ -827,7 +844,8 @@ function MainScript(chrome_i18n) {
 
     // Apply button
     let applyButton = document.createElement("button");
-    applyButton.textContent = chrome_i18n.applySubtitles || "Apply Selected Subtitles";
+    applyButton.textContent =
+      chrome_i18n.applySubtitles || "Apply Selected Subtitles";
     applyButton.style.display = "block";
     applyButton.style.width = "100%";
     applyButton.style.padding = "6px";
@@ -838,14 +856,19 @@ function MainScript(chrome_i18n) {
     applyButton.style.cursor = "pointer";
     applyButton.style.marginTop = "8px";
 
-    applyButton.onmouseover = () => applyButton.style.background = "#0089c0";
-    applyButton.onmouseout = () => applyButton.style.background = "#00adef";
-    
+    applyButton.onmouseover = () => (applyButton.style.background = "#0089c0");
+    applyButton.onmouseout = () => (applyButton.style.background = "#00adef");
+
     applyButton.onclick = function () {
       // Reorder subtitles if both EN and RU are present
-      if (engKey && ruKey && activeSubtitles[engKey] && activeSubtitles[ruKey]) {
+      if (
+        engKey &&
+        ruKey &&
+        activeSubtitles[engKey] &&
+        activeSubtitles[ruKey]
+      ) {
         let orderedSubs = {};
-        orderedSubs[engKey] = activeSubtitles[engKey]; 
+        orderedSubs[engKey] = activeSubtitles[engKey];
         orderedSubs[ruKey] = activeSubtitles[ruKey];
         activeSubtitles = orderedSubs;
       }
@@ -875,13 +898,9 @@ function MainScript(chrome_i18n) {
     }
 
     // Remove existing subtitle display div from the player
-    document
-      .querySelectorAll(
-        ".multi-subtitle-container"
-      )
-      .forEach((el) => {
-        el.remove();
-      });
+    document.querySelectorAll(".multi-subtitle-container").forEach((el) => {
+      el.remove();
+    });
 
     // Hide existing player subtitles
     const playerSubtitles = document.querySelector(
@@ -917,18 +936,25 @@ function MainScript(chrome_i18n) {
       container.style.flexDirection = "column";
       container.style.alignItems = "center";
       container.style.justifyContent = "center";
-      
+
       // Add right-click handler directly to container
-      container.addEventListener('contextmenu', function(e) {
-        e.stopPropagation();
-      }, true);
-      
+      container.addEventListener(
+        "contextmenu",
+        function (e) {
+          e.stopPropagation();
+        },
+        true
+      );
+
       parent.appendChild(container);
       return container;
     }
 
     // Create container for current player mode (normal or fullscreen)
-    const currentContainer = document.fullscreenElement || document.webkitFullscreenElement || playerElement;
+    const currentContainer =
+      document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      playerElement;
     const subsContainer = createSubtitlesContainer(currentContainer);
 
     // Store active cues content to reuse when recreating containers
@@ -937,31 +963,37 @@ function MainScript(chrome_i18n) {
     // Enable context menu on subtitles - only setup once
     function enableContextMenu() {
       if (contextMenuEnabled) return;
-      
+
       // Main player right-click handler
-      playerElement.addEventListener('contextmenu', function(e) {
-        // Check if right-click was on a subtitle element
-        let path = e.composedPath();
-        for (const element of path) {
-          if (element.classList && 
-             (element.classList.contains('multi-subtitle-container') ||
-              element.classList.contains('subtitle-text') ||
-              element.classList.contains('subtitle-span'))) {
-            // Allow default browser context menu
-            e.stopPropagation();
-            return true;
+      playerElement.addEventListener(
+        "contextmenu",
+        function (e) {
+          // Check if right-click was on a subtitle element
+          let path = e.composedPath();
+          for (const element of path) {
+            if (
+              element.classList &&
+              (element.classList.contains("multi-subtitle-container") ||
+                element.classList.contains("subtitle-text") ||
+                element.classList.contains("subtitle-span"))
+            ) {
+              // Allow default browser context menu
+              e.stopPropagation();
+              return true;
+            }
           }
-        }
-      }, true);
-      
+        },
+        true
+      );
+
       contextMenuEnabled = true;
     }
-    
+
     // Call the function immediately
     enableContextMenu();
-    
+
     // Single unified observer for player changes
-    const playerObserver = new MutationObserver(function(mutations) {
+    const playerObserver = new MutationObserver(function (mutations) {
       // Handle subtitle display hiding
       const playerSubtitles = document.querySelector(
         '#oframecdnplayer > pjsdiv[style*="bottom: 50px"]:not(.multi-subtitle-container)'
@@ -970,7 +1002,7 @@ function MainScript(chrome_i18n) {
         playerSubtitles.style.display = "none";
       }
     });
-    
+
     playerObserver.observe(playerElement, {
       childList: true,
       subtree: true,
@@ -997,12 +1029,16 @@ function MainScript(chrome_i18n) {
       let subDisplay = document.createElement("pjsdiv");
       subDisplay.dataset.lang = lang;
       subDisplay.className = "subtitle-text";
-      
+
       // Add right-click handler directly
-      subDisplay.addEventListener('contextmenu', function(e) {
-        e.stopPropagation();
-      }, true);
-      
+      subDisplay.addEventListener(
+        "contextmenu",
+        function (e) {
+          e.stopPropagation();
+        },
+        true
+      );
+
       subsContainer.appendChild(subDisplay);
 
       // Enable track and set up event listeners
@@ -1010,28 +1046,31 @@ function MainScript(chrome_i18n) {
       trackObj.mode = "hidden";
 
       // Monitor cue changes - create a reusable style string
-      const baseStyle = "background-color:rgba(0,0,0,0.7);" +
-                        "padding:3px 6px;" +
-                        "border-radius:3px;" +
-                        "line-height:1.4;" +
-                        "color:white;" +
-                        "display:inline-block;" +
-                        "margin-bottom:2px;" +
-                        "max-width:100%;" +
-                        "white-space:normal;" +
-                        "word-break:break-word;" +
-                        "user-select:text;" +
-                        "pointer-events:auto;" +
-                        "-webkit-user-select:text;" +
-                        "-moz-user-select:text;" +
-                        "-ms-user-select:text;";
+      const baseStyle =
+        "background-color:rgba(0,0,0,0.7);" +
+        "padding:3px 6px;" +
+        "border-radius:3px;" +
+        "line-height:1.4;" +
+        "color:white;" +
+        "display:inline-block;" +
+        "margin-bottom:2px;" +
+        "max-width:100%;" +
+        "white-space:normal;" +
+        "word-break:break-word;" +
+        "user-select:text;" +
+        "pointer-events:auto;" +
+        "-webkit-user-select:text;" +
+        "-moz-user-select:text;" +
+        "-ms-user-select:text;";
 
       // Monitor cue changes
       trackObj.oncuechange = function () {
         // Find the current subtitle container that might have moved to a different parent
-        const currentSubtitlesContainer = document.querySelector(".multi-subtitle-container");
+        const currentSubtitlesContainer = document.querySelector(
+          ".multi-subtitle-container"
+        );
         if (!currentSubtitlesContainer) return;
-        
+
         // Get the current subtitle element from container
         const subElement = currentSubtitlesContainer.querySelector(
           `.subtitle-text[data-lang="${lang}"]`
@@ -1043,14 +1082,14 @@ function MainScript(chrome_i18n) {
           // Set font size based on language position (first is larger and bold, second is smaller)
           const fontSize = i === 0 ? "18px" : "14px";
           const fontWeight = i === 0 ? "700" : "400";
-          
+
           // Use the precomputed style string and just append variable parts
           const spanHTML = `<span 
             style="${baseStyle}font-weight:${fontWeight};font-size:${fontSize};"
             class="subtitle-span">${cueText}</span>`;
-          
+
           subElement.innerHTML = spanHTML;
-          
+
           // Store content for recreation when switching modes
           activeCuesContent[lang] = spanHTML;
         } else {
@@ -1072,9 +1111,11 @@ function MainScript(chrome_i18n) {
         .forEach((el) => el.remove());
 
       // Create new container in the appropriate parent element
-      const newParent = 
-        document.fullscreenElement || document.webkitFullscreenElement || playerElement;
-      
+      const newParent =
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        playerElement;
+
       // Create new container
       const newContainer = createSubtitlesContainer(newParent);
 
@@ -1085,17 +1126,21 @@ function MainScript(chrome_i18n) {
         let subDisplay = document.createElement("pjsdiv");
         subDisplay.dataset.lang = lang;
         subDisplay.className = "subtitle-text";
-        
+
         // Add right-click handler directly
-        subDisplay.addEventListener('contextmenu', function(e) {
-          e.stopPropagation();
-        }, true);
-        
+        subDisplay.addEventListener(
+          "contextmenu",
+          function (e) {
+            e.stopPropagation();
+          },
+          true
+        );
+
         // Restore any active content
         if (activeCuesContent[lang]) {
           subDisplay.innerHTML = activeCuesContent[lang];
         }
-        
+
         newContainer.appendChild(subDisplay);
       }
     }
@@ -1114,18 +1159,24 @@ function MainScript(chrome_i18n) {
       // Only check every 1000ms to reduce performance impact
       if (now - lastCheckTime < 1000) return;
       lastCheckTime = now;
-      
+
       const isFullscreen = !!(
         document.fullscreenElement || document.webkitFullscreenElement
       );
-      
+
       // If we're in fullscreen but don't have a container, create one
-      const fullscreenContainer = document.querySelector(".multi-subtitle-container");
-      const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
-      
-      if (!fullscreenContainer || 
-          (isFullscreen && fullscreenContainer.parentElement !== fullscreenElement) ||
-          (!isFullscreen && fullscreenContainer.parentElement !== playerElement)) {
+      const fullscreenContainer = document.querySelector(
+        ".multi-subtitle-container"
+      );
+      const fullscreenElement =
+        document.fullscreenElement || document.webkitFullscreenElement;
+
+      if (
+        !fullscreenContainer ||
+        (isFullscreen &&
+          fullscreenContainer.parentElement !== fullscreenElement) ||
+        (!isFullscreen && fullscreenContainer.parentElement !== playerElement)
+      ) {
         handleFullscreenChange();
       }
     });
