@@ -9,7 +9,7 @@
 // @grant        none
 // ==/UserScript==
 
-(function() {
+(function () {
   "use strict";
 
   let subtitlesData = {}; // Объект для хранения активных субтитров
@@ -33,7 +33,10 @@
     disableNativeSubtitles(video);
 
     // Запускаем интервал для постоянной проверки и отключения нативных субтитров
-    disableCheckInterval = setInterval(() => disableNativeSubtitles(video), 1000);
+    disableCheckInterval = setInterval(
+      () => disableNativeSubtitles(video),
+      1000
+    );
 
     // Загружаем субтитры, затем отображаем
     parseAndLoadSubtitles().then(() => {
@@ -47,7 +50,7 @@
     const activeSubtitles = {};
 
     // Парсим доступные субтитры
-    CDNPlayerInfo.subtitle.split(",").forEach(e => {
+    CDNPlayerInfo.subtitle.split(",").forEach((e) => {
       try {
         const parts = e.split("[");
         if (parts.length < 2) return;
@@ -57,17 +60,22 @@
         console.log("[DualSubtitles] Распарсено:", lang, link);
 
         // Сохраняем все доступные субтитры
-        if (lang.toLowerCase().includes("en") || lang.toLowerCase() === "english") {
+        if (
+          lang.toLowerCase().includes("en") ||
+          lang.toLowerCase() === "english"
+        ) {
           activeSubtitles["en"] = {
             name: lang,
-            url: link
+            url: link,
           };
-        } else if (lang.toLowerCase().includes("ru") ||
-                  lang.toLowerCase() === "russian" ||
-                  lang.toLowerCase() === "русский") {
+        } else if (
+          lang.toLowerCase().includes("ru") ||
+          lang.toLowerCase() === "russian" ||
+          lang.toLowerCase() === "русский"
+        ) {
           activeSubtitles["ru"] = {
             name: lang,
-            url: link
+            url: link,
           };
         }
       } catch (err) {
@@ -82,13 +90,20 @@
       try {
         const url = activeSubtitles[lang].url;
         const response = await fetch(url);
-        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+        if (!response.ok)
+          throw new Error(`HTTP error! Status: ${response.status}`);
 
         const text = await response.text();
         subtitlesData[lang] = parseVTT(text, lang);
-        console.log(`[DualSubtitles] Субтитры для ${lang} загружены и разобраны:`, subtitlesData[lang].length);
+        console.log(
+          `[DualSubtitles] Субтитры для ${lang} загружены и разобраны:`,
+          subtitlesData[lang].length
+        );
       } catch (error) {
-        console.error(`[DualSubtitles] Ошибка загрузки субтитров для ${lang}:`, error);
+        console.error(
+          `[DualSubtitles] Ошибка загрузки субтитров для ${lang}:`,
+          error
+        );
       }
     }
 
@@ -97,7 +112,7 @@
 
   // Функция для парсинга VTT-файла
   function parseVTT(vttText, lang) {
-    const lines = vttText.split('\n');
+    const lines = vttText.split("\n");
     const cues = [];
     let currentCue = null;
 
@@ -105,27 +120,27 @@
       const line = lines[i].trim();
 
       // Пропускаем пустые строки и заголовок WEBVTT
-      if (!line || line === 'WEBVTT') continue;
+      if (!line || line === "WEBVTT") continue;
 
       // Проверяем, содержит ли строка временной диапазон (00:00:00.000 --> 00:00:00.000)
-      if (line.includes('-->')) {
-        const timeData = line.split('-->');
+      if (line.includes("-->")) {
+        const timeData = line.split("-->");
         const startTime = parseTimeToSeconds(timeData[0].trim());
         const endTime = parseTimeToSeconds(timeData[1].trim());
 
         currentCue = {
           startTime,
           endTime,
-          text: '',
-          lang
+          text: "",
+          lang,
         };
         cues.push(currentCue);
       } else if (currentCue) {
         // Добавляем текст к текущему cue, удаляя числа в конце строки
-        const cleanedLine = line.replace(/\d+\s*$/, '').trim();
+        const cleanedLine = line.replace(/\d+\s*$/, "").trim();
         if (cleanedLine) {
           if (currentCue.text) {
-            currentCue.text += ' ' + cleanedLine;
+            currentCue.text += " " + cleanedLine;
           } else {
             currentCue.text = cleanedLine;
           }
@@ -138,12 +153,15 @@
 
   // Конвертирует время в формате "00:00:00.000" в секунды
   function parseTimeToSeconds(timeString) {
-    const parts = timeString.split(':');
+    const parts = timeString.split(":");
     let seconds = 0;
 
     if (parts.length === 3) {
       // Формат HH:MM:SS.mmm
-      seconds = parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
+      seconds =
+        parseFloat(parts[0]) * 3600 +
+        parseFloat(parts[1]) * 60 +
+        parseFloat(parts[2]);
     } else if (parts.length === 2) {
       // Формат MM:SS.mmm
       seconds = parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
@@ -163,21 +181,21 @@
 
     // 2. Удаляем все элементы track
     const trackElements = video.querySelectorAll("track");
-    trackElements.forEach(track => {
+    trackElements.forEach((track) => {
       track.remove();
     });
 
     // 3. Отключаем через имеющиеся API плеера
     try {
       // Отключение через глобальный player
-      if (typeof(player) !== 'undefined') {
+      if (typeof player !== "undefined") {
         if (player.subtitle) player.subtitle.disable();
         // Дополнительные пути отключения
         if (player.subtitles) player.subtitles.disable();
       }
 
       // Отключение через CDNPlayer
-      if (typeof(CDNPlayer) !== 'undefined') {
+      if (typeof CDNPlayer !== "undefined") {
         if (CDNPlayer.subtitle) CDNPlayer.subtitle.disable();
         // Дополнительные пути отключения
         if (CDNPlayer.subtitles) CDNPlayer.subtitles.disable();
@@ -188,8 +206,10 @@
 
     // 4. Имитация клика по кнопке отключения субтитров
     try {
-      const subtitleSelectors = document.querySelectorAll('.subtitle-select, .cdn-selector-subtitle, .cdnplayer-subtitles-menu');
-      subtitleSelectors.forEach(selector => {
+      const subtitleSelectors = document.querySelectorAll(
+        ".subtitle-select, .cdn-selector-subtitle, .cdnplayer-subtitles-menu"
+      );
+      subtitleSelectors.forEach((selector) => {
         if (selector) {
           const offOption = selector.querySelector('li[data-subtitle="off"]');
           if (offOption) {
@@ -200,15 +220,19 @@
       });
 
       // Дополнительно ищем кнопки субтитров в плеере
-      const subtitleButtons = document.querySelectorAll('.vjs-subs-caps-button, .subtitles-button, .vjs-subtitles-button');
-      subtitleButtons.forEach(button => {
+      const subtitleButtons = document.querySelectorAll(
+        ".vjs-subs-caps-button, .subtitles-button, .vjs-subtitles-button"
+      );
+      subtitleButtons.forEach((button) => {
         // Проверяем, не является ли кнопка уже активной для отключения
-        if (button && !button.classList.contains('subtitles-disabled')) {
+        if (button && !button.classList.contains("subtitles-disabled")) {
           button.click(); // Кликаем для вызова меню
           // Ищем опцию отключения субтитров в выпадающем меню
           setTimeout(() => {
-            const offOptions = document.querySelectorAll('.vjs-menu-item[data-subtitle="off"], .subtitles-item[data-subtitle="off"]');
-            offOptions.forEach(option => option.click());
+            const offOptions = document.querySelectorAll(
+              '.vjs-menu-item[data-subtitle="off"], .subtitles-item[data-subtitle="off"]'
+            );
+            offOptions.forEach((option) => option.click());
           }, 50);
         }
       });
@@ -218,61 +242,70 @@
 
     // 5. Скрытие видимых элементов субтитров через CSS
     const subtitleElements = [
-      '.b-simple_text_decor__subtitle',
-      '.text-subtitle',
-      '.subtitles-container',
-      '.vjs-text-track-display',
-      '.vjs-text-track',
-      '.vjs-text-track-cue',
+      ".b-simple_text_decor__subtitle",
+      ".text-subtitle",
+      ".subtitles-container",
+      ".vjs-text-track-display",
+      ".vjs-text-track",
+      ".vjs-text-track-cue",
       '#oframecdnplayer > pjsdiv[style*="bottom: 50px"]:not(.multi-subtitle-container):not(.subtitle-overlay-container)',
-      '.pjsdiv.subtitles'
+      ".pjsdiv.subtitles",
     ];
 
-    subtitleElements.forEach(selector => {
-      document.querySelectorAll(selector).forEach(el => {
-        el.style.display = 'none';
-        el.style.visibility = 'hidden';
+    subtitleElements.forEach((selector) => {
+      document.querySelectorAll(selector).forEach((el) => {
+        el.style.display = "none";
+        el.style.visibility = "hidden";
       });
     });
 
     // 6. Удаляем возможные контейнеры субтитров, созданные плеером
-    document.querySelectorAll('pjsdiv').forEach(el => {
+    document.querySelectorAll("pjsdiv").forEach((el) => {
       // Проверяем, похож ли элемент на контейнер субтитров (по стилям)
-      if (el.style &&
-          (el.style.bottom === '50px' || el.style.bottom === '40px') &&
-          !el.classList.contains('subtitle-overlay-container') &&
-          !el.classList.contains('multi-subtitle-container')) {
-        el.style.display = 'none';
-        el.style.visibility = 'hidden';
+      if (
+        el.style &&
+        (el.style.bottom === "50px" || el.style.bottom === "40px") &&
+        !el.classList.contains("subtitle-overlay-container") &&
+        !el.classList.contains("multi-subtitle-container")
+      ) {
+        el.style.display = "none";
+        el.style.visibility = "hidden";
       }
     });
 
     // 7. Добавляем MutationObserver для отслеживания динамически созданных элементов субтитров
-    const playerContainer = document.getElementById('oframecdnplayer') || video.parentElement;
+    const playerContainer =
+      document.getElementById("oframecdnplayer") || video.parentElement;
     if (playerContainer && !playerContainer._subtitleObserverAdded) {
-      const observer = new MutationObserver(mutations => {
-        mutations.forEach(mutation => {
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
           // Если добавлены новые узлы
           if (mutation.addedNodes.length) {
-            mutation.addedNodes.forEach(node => {
+            mutation.addedNodes.forEach((node) => {
               // Проверяем, является ли узел элементом с субтитрами
-              if (node.nodeType === 1) { // Элемент
+              if (node.nodeType === 1) {
+                // Элемент
                 // Проверка по классам
-                if (node.classList &&
-                    (node.classList.contains('subtitles') ||
-                     node.classList.contains('text-subtitle') ||
-                     node.classList.contains('b-simple_text_decor__subtitle'))) {
-                  node.style.display = 'none';
-                  node.style.visibility = 'hidden';
+                if (
+                  node.classList &&
+                  (node.classList.contains("subtitles") ||
+                    node.classList.contains("text-subtitle") ||
+                    node.classList.contains("b-simple_text_decor__subtitle"))
+                ) {
+                  node.style.display = "none";
+                  node.style.visibility = "hidden";
                 }
 
                 // Проверка по позиции и отсутствию наших классов
-                if (node.style &&
-                    (node.style.bottom === '50px' || node.style.bottom === '40px') &&
-                    !node.classList.contains('subtitle-overlay-container') &&
-                    !node.classList.contains('multi-subtitle-container')) {
-                  node.style.display = 'none';
-                  node.style.visibility = 'hidden';
+                if (
+                  node.style &&
+                  (node.style.bottom === "50px" ||
+                    node.style.bottom === "40px") &&
+                  !node.classList.contains("subtitle-overlay-container") &&
+                  !node.classList.contains("multi-subtitle-container")
+                ) {
+                  node.style.display = "none";
+                  node.style.visibility = "hidden";
                 }
               }
             });
@@ -284,7 +317,7 @@
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ['style', 'class']
+        attributeFilter: ["style", "class"],
       });
 
       playerContainer._subtitleObserverAdded = true;
@@ -298,20 +331,26 @@
     if (contextMenuEnabled) return;
 
     // Обработчик правого клика на основном плеере
-    playerElement.addEventListener('contextmenu', function(e) {
-      // Проверяем, был ли правый клик на элементе субтитров
-      let path = e.composedPath();
-      for (const element of path) {
-        if (element.classList &&
-           (element.classList.contains('subtitle-overlay-container') ||
-            element.classList.contains('subtitle-text') ||
-            element.classList.contains('subtitle-span'))) {
-          // Разрешаем стандартное контекстное меню браузера
-          e.stopPropagation();
-          return true;
+    playerElement.addEventListener(
+      "contextmenu",
+      function (e) {
+        // Проверяем, был ли правый клик на элементе субтитров
+        let path = e.composedPath();
+        for (const element of path) {
+          if (
+            element.classList &&
+            (element.classList.contains("subtitle-overlay-container") ||
+              element.classList.contains("subtitle-text") ||
+              element.classList.contains("subtitle-span"))
+          ) {
+            // Разрешаем стандартное контекстное меню браузера
+            e.stopPropagation();
+            return true;
+          }
         }
-      }
-    }, true);
+      },
+      true
+    );
 
     contextMenuEnabled = true;
     console.log("[DualSubtitles] Контекстное меню для субтитров включено");
@@ -328,11 +367,12 @@
     }
 
     // Создаем контейнеры для субтитров
-    const parent = document.getElementById("oframecdnplayer") || video.parentElement;
+    const parent =
+      document.getElementById("oframecdnplayer") || video.parentElement;
     if (!parent) return;
 
     // Удаляем старые оверлеи, если есть
-    document.querySelectorAll('.subtitle-overlay-container').forEach(el => {
+    document.querySelectorAll(".subtitle-overlay-container").forEach((el) => {
       el.remove();
     });
 
@@ -378,11 +418,16 @@
 
     // Функция обработки изменения fullscreen режима
     function handleFullscreenChange() {
-      const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      const isFullscreen = !!(
+        document.fullscreenElement || document.webkitFullscreenElement
+      );
       console.log("[DualSubtitles] Изменение режима fullscreen:", isFullscreen);
 
       // Текущий контейнер для размещения оверлеев
-      const currentContainer = document.fullscreenElement || document.webkitFullscreenElement || parent;
+      const currentContainer =
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        parent;
 
       // Перемещаем оверлеи в текущий контейнер
       for (const lang in overlays) {
@@ -408,8 +453,8 @@
       const overlay = overlays[lang];
 
       // Находим активные субтитры для текущего времени
-      const activeCue = cues.find(cue =>
-        currentTime >= cue.startTime && currentTime <= cue.endTime
+      const activeCue = cues.find(
+        (cue) => currentTime >= cue.startTime && currentTime <= cue.endTime
       );
 
       if (activeCue && overlay) {
