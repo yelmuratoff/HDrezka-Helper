@@ -15,6 +15,7 @@
   let subtitlesData = {}; // Объект для хранения активных субтитров
   let disableCheckInterval; // Интервал для проверки и отключения нативных субтитров
   let contextMenuEnabled = false; // Флаг для отслеживания активации контекстного меню
+  let episodeObserver; // Наблюдатель за изменением серии/перевода
 
   window.addEventListener("load", () => {
     console.log("[DualSubtitles] Страница загружена.");
@@ -32,17 +33,173 @@
     // Сначала отключаем нативные субтитры
     disableNativeSubtitles(video);
 
-    // Запускаем интервал для постоянной проверки и отключения нативных субтитров
-    disableCheckInterval = setInterval(
-      () => disableNativeSubtitles(video),
-      1000
-    );
-
     // Загружаем субтитры, затем отображаем
     parseAndLoadSubtitles().then(() => {
       setupSubtitleDisplay();
     });
+
+    // Добавляем наблюдателя за изменениями переводчика
+    setupTranslatorObserver(video);
+
+    // Добавляем наблюдателя за изменениями серии/сезона
+    setupEpisodeObserver(video);
   });
+
+  // Функция для отслеживания изменения переводчика
+  function setupTranslatorObserver(video) {
+    const translatorsList = document.getElementById("translators-list");
+    if (!translatorsList) return;
+
+    // Обработчик клика по переводчику
+    translatorsList.addEventListener("click", function (e) {
+      const clickedTranslator =
+        e.target.tagName === "LI" ? e.target : e.target.closest("li");
+      if (clickedTranslator) {
+        // При переключении переводчика нужно подождать, пока новые данные загрузятся
+        console.log(
+          "[DualSubtitles] Обнаружено переключение переводчика, ждем загрузки новых данных..."
+        );
+        setTimeout(() => {
+          if (window.CDNPlayerInfo && CDNPlayerInfo.subtitle) {
+            console.log(
+              "[DualSubtitles] Перезагружаем субтитры после смены переводчика"
+            );
+            // Очищаем все существующие субтитры
+            removeAllSubtitles();
+            // Заново загружаем и отображаем субтитры
+            parseAndLoadSubtitles().then(() => {
+              setupSubtitleDisplay();
+            });
+          }
+        }, 1000); // Даем время на загрузку нового CDNPlayerInfo
+      }
+    });
+
+    // Также отслеживаем изменение класса активности для переводчиков через MutationObserver
+    const translatorObserver = new MutationObserver(function (mutations) {
+      mutations.forEach(function (mutation) {
+        if (
+          mutation.attributeName === "class" &&
+          mutation.target.classList.contains("active") &&
+          mutation.target.parentElement === translatorsList
+        ) {
+          console.log(
+            "[DualSubtitles] Обнаружена смена активного переводчика через класс"
+          );
+          setTimeout(() => {
+            if (window.CDNPlayerInfo && CDNPlayerInfo.subtitle) {
+              // Очищаем все существующие субтитры
+              removeAllSubtitles();
+              // Заново загружаем и отображаем субтитры
+              parseAndLoadSubtitles().then(() => {
+                setupSubtitleDisplay();
+              });
+            }
+          }, 1000);
+        }
+      });
+    });
+
+    // Наблюдаем за всеми элементами списка переводчиков
+    const translatorItems = translatorsList.querySelectorAll("li");
+    translatorItems.forEach((item) => {
+      translatorObserver.observe(item, { attributes: true });
+    });
+  }
+
+  // Функция для отслеживания изменения серии/сезона
+  function setupEpisodeObserver(video) {
+    // Наблюдаем за изменениями в теле документа, чтобы отслеживать изменения в плеере при смене эпизода
+    if (episodeObserver) {
+      episodeObserver.disconnect();
+    }
+
+    episodeObserver = new MutationObserver(function (mutations) {
+      // Проверяем, изменился ли source у видео (признак смены серии)
+      if (video.src !== video.dataset.lastSrc) {
+        console.log(
+          "[DualSubtitles] Обнаружена смена серии, перезагружаем субтитры"
+        );
+        video.dataset.lastSrc = video.src;
+
+        // При смене серии подождем небольшую паузу для загрузки новых данных CDNPlayerInfo
+        setTimeout(() => {
+          if (window.CDNPlayerInfo && CDNPlayerInfo.subtitle) {
+            // Очищаем все существующие субтитры
+            removeAllSubtitles();
+            // Заново загружаем и отображаем субтитры
+            parseAndLoadSubtitles().then(() => {
+              setupSubtitleDisplay();
+            });
+          }
+        }, 1000);
+      }
+    });
+
+    // Запоминаем начальный src видео
+    video.dataset.lastSrc = video.src;
+
+    // Начинаем наблюдение за изменениями в плеере
+    episodeObserver.observe(document.querySelector("body"), {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["src"],
+    });
+
+    // Добавляем обработчики кликов по вкладкам сезонов и серий
+    const seasonsTab = document.getElementById("simple-seasons-tabs");
+    const episodesTab = document.getElementById("simple-episodes-tabs");
+
+    if (seasonsTab) {
+      seasonsTab.addEventListener("click", (e) => {
+        if (e.target.tagName === "LI") {
+          console.log(
+            "[DualSubtitles] Клик по вкладке сезона, будем ждать смены серии"
+          );
+        }
+      });
+    }
+
+    if (episodesTab) {
+      episodesTab.addEventListener("click", (e) => {
+        if (e.target.tagName === "LI") {
+          console.log(
+            "[DualSubtitles] Клик по вкладке эпизода, ожидаем смены видео"
+          );
+        }
+      });
+    }
+  }
+
+  // Функция для удаления всех существующих субтитров
+  function removeAllSubtitles() {
+    // Очищаем данные субтитров
+    subtitlesData = {};
+
+    // Удаляем все контейнеры субтитров с экрана
+    document.querySelectorAll(".subtitle-overlay-container").forEach((el) => {
+      el.remove();
+    });
+
+    // Отключаем все текстовые дорожки
+    const video = document.querySelector("#player video");
+    if (video && video.textTracks && video.textTracks.length > 0) {
+      for (let i = 0; i < video.textTracks.length; i++) {
+        video.textTracks[i].mode = "disabled";
+      }
+    }
+
+    // Удаляем элементы track
+    if (video) {
+      const trackElements = video.querySelectorAll("track");
+      trackElements.forEach((track) => {
+        track.remove();
+      });
+    }
+
+    console.log("[DualSubtitles] Все субтитры удалены");
+  }
 
   // Функция для парсинга и загрузки субтитров
   async function parseAndLoadSubtitles() {
